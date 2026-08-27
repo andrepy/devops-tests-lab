@@ -23,7 +23,7 @@ services:
       POSTGRES_PASSWORD: senha123
       POSTGRES_DB: testdb
     volumes:
-      - pgdata:/var/lib/postgressql/data
+      - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
