@@ -1,0 +1,45 @@
+name: Connectivity Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    
+jobs:
+  connectivity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker compose up -d --build
+
+      - name: Aguardar
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0; sleep 2
+          done; exit 1
+          
+      - name: "DNS: web resolve db"
+        run: docker compose exec -T web getent hosts db
+
+      - name: "Porta: web alcança db:5432"
+        run: docker compose exec -T web nc -z db 5432
+
+      - name: "Postgres: pg_isready"
+        run: docker compose exec -T db pg_isready -U postgres
+
+      - name: "Query: /health -> db connected "
+        run: |
+          curl -sf http://localhost:3000/health | \
+            jq -e '.db == "connected"'
+
+      - name: "Segurança: db NÃO exporta ao host"
+        run: |
+          if nc -z localhost 5432 2>/dev/null; then
+            echo "::error::Porta 5432 exposta!"; exit 1
+          fi
+          echo "✔ Porta 5432 não exposta"
+
+      - if: always()
+        run: docker compose down -v

@@ -26,7 +26,7 @@ jobs:
           done
           echo "::error::Timeout"; exit 1
       
-      - name: Health Check - STatus e JSON
+      - name: Health Check - Status e JSON
         run: |
           curl -sf http://localhost:3000/health | tee /tmp/h.json
           cat /tmp/h.json | jq -e '.status == "ok"'
