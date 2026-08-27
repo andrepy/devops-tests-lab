@@ -1,0 +1,49 @@
+name: Health Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SUbir ambiente
+        run: docker compose up -d --build
+
+      - name: Aguardar API (retry)
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              http://localhost:3000/health 2>/dev/null || echo 000)
+            [ "$STATUS" = "200" ] && echo "Pronta! ($i)" && exit 0
+            echo "Tentativa $i/30 — HTTP $STATUS"
+            sleep 2
+          done
+          echo "::error::Timeout"; exit 1
+      
+      - name: Health Check - STatus e JSON
+        run: |
+          curl -sf http://localhost:3000/health | tee /tmp/h.json
+          cat /tmp/h.json | jq -e '.status == "ok"'
+          cat /tmp/h.json | jq -e '.db == "connected"'
+          echo "✔ Health check completo"
+      
+      - name: Logs (falha)
+        if: failure()
+        run: docker compose logs > /tmp/logs.txt 2>&1
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-logs
+          path: /tmp/logs.txt
+
+      - name: Clenup
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  web:
+    build: ./app
+    container_name: web
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:senha123@db:5432/testdb
+      NODE_ENV: production
+      PORT: '3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: db
+    environment: 
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: senha123
+      POSTGRES_DB: testdb
+    volumes:
+      - pgdata:/var/lib/postgressql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      retries: 10
+
+volumes:
+  pddata:

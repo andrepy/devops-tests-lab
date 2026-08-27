@@ -1,0 +1,8 @@
+node_modules
+.git
+.github
+.env
+*.md
+docker-compose.yml
+init.sql
+.gitignore
