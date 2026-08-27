@@ -1,0 +1,60 @@
+name: Validate Configuration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar docker-compose.yml
+        run: docker compose config -q && echo "✔ Compose válido"
+
+      - name: Validar Dockerfile
+        run: |
+          DFILE=app/Dockerfile
+          for INSTR in FROM WORKDIR COPY RUN EXPOSE CMD; do
+            grep -q "^$INSTR" $DFILE || \
+              { echo "::error::Faltando $INSTR"; exit 1; }
+            echo "✔ $INSTR"
+          done
+
+      - name: Validar .dockerignore
+        run: |
+          for P in node_modules .git .env; do
+            grep -q $P .dockerignore || \
+              { echo "::error::Falta $P no .dockerignore"; exit 1; }
+          done
+          echo "✔ .dockerignore"
+
+      - name: Verificar .env.example
+        run: |
+          [ -f .env.example ] && echo "✔ .env.example" || \
+            echo "::warning::Falta .env.example
+
+      - name: Verificar scripts no package.json
+        run: |
+          for S in start test; do
+            jq -e ".scripts.$S" app/package.json > /dev/null || \
+              { echo "::error::Falta script $S"; exit 1; }
+          done
+          echo "✔ Scripts ok"
+
+      - name: Verificar secrets hardcoded
+        run: |
+          if grep -iE '(password|secret|token):\s*[a-zA-Z0-9]' \
+            docker-compose.yml | grep -v '\${' > /dev/null 2>&1; then
+            echo "::warning::Possíveis secrets hardcoded!"
+            grep -inE '(password|secret|token):\s*[a-zA-Z0-9]' \
+              docker-compose.yml | grep -v '\${'
+          else
+            echo "✔ Nenhum secret hardcoded"
+          fi
+
+
+
