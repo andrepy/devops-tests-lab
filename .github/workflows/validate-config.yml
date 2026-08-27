@@ -35,7 +35,7 @@ jobs:
       - name: Verificar .env.example
         run: |
           [ -f .env.example ] && echo "✔ .env.example" || \
-            echo "::warning::Falta .env.example
+            echo "::warning::Falta .env.example"
 
       - name: Verificar scripts no package.json
         run: |
