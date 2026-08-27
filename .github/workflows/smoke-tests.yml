@@ -1,0 +1,55 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker compose up -d --build
+
+      - name: Aguardar
+        run: | 
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0; sleep 2
+          done; exit 1
+
+      - name: "GET /health -> 200"
+        run: curl -sf http://localhost:3000/health | jq -e '.status == "ok"'
+
+      - name: "GET /items -> 200, array"
+        run: curl -sf http://localhost:3000/items | jq -e 'type == "array"'
+
+      - name: "POST /items -> 201"
+        run: |
+          RESP=$(curl -sf -X POST -H 'Content-Type: application/json' \
+            -d '{"name":"CI Test"}' http://localhost:3000/items)
+          echo $RESP | jq -e '.name == "CI Test"'
+          ID=$(echo $RESP | jq -r '.id')
+          echo "ITEM_ID=$ID" >> $GITHUB_ENV
+          echo "✔ Criado item $ID"
+
+      - name: "GET /items/:id -> 200"
+        run: |
+          curl -sf http://localhost:3000/items/${{ env.ITEM_ID }} | \
+            jq -e '.name == "CI Test"'
+
+      - name: "DELETE /items/:id -> 200"
+        run: curl -sf -X DELETE http://localhost:3000/items/${{ env.ITEM_ID }}
+
+      - name: "GET /inexistente -> 404"
+        run: |
+          S=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/xyz)
+          [ "$S" = "404" ] && echo "✔ 404" || { echo "::error::$S"; exit 1; }
+
+      - if: failure()
+        run: docker compose logs
+
+      - if: always()
+        run: docker compose down -v
