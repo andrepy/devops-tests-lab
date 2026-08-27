@@ -9,14 +9,13 @@ const pool = new Pool({
 })
 
 app.get("/health", async (req, res) => {
-    try {
-        await pool.query("SELECT 1");
-        res.json({ status: "OK", db: "connected" })
-    } catch (err) {
-        res.status(500).json({ status: "error", db: err.message })
-    }
-})
-
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ok", db: "connected" });
+  } catch (err) {
+    res.status(500).json({ status: "error", db: err.message });
+  }
+});
 
 app.get("/items", async (req, res) => {
   const result = await pool.query("SELECT * FROM items ORDER BY id");
@@ -50,3 +49,12 @@ app.delete("/items/:id", async (req, res) => {
   );
   res.json({ deleted: true });
 });
+
+app.use((req, res) => res.status(404).json({ error: "Not found" }));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+})
+
+module.exports = app;
