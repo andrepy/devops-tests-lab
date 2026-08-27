@@ -1,0 +1,100 @@
+name: CI/CD com Gates de Teste
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+    
+      - run: docker compose config -q
+
+      - run: |
+          for I in FROM COPY EXPOSE CMD; do
+            grep -q "^$I" app/Dockerfile || { echo "::error::$I"; exit 1; }
+          done
+
+      - run: grep -q node_modules .dockerignore
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+    
+      - run: cd app && npm ci && npm test
+
+  integration-tests:
+    needs: [validate, unit-tests]
+    runs-on: ubuntu-latest 
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker compose up -d --build
+
+      - name: Aguardar
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0; sleep 2
+          done; exit 1
+
+      - name: Health check
+        run: curl -sf http://localhost:3000/health | jq -e '.db == "connected"'
+
+      - name: Conectividade
+        run: docker compose exec -T db pg_isready -U postgres
+
+      - name: Smoke CRUD
+        run: |
+          curl -sf http://localhost:3000/items | jq -e 'type == "array"'
+          ID=$(curl -sf -X POST -H 'Content-Type: application/json' \
+            -d '{"name":"Pipeline Test"}' \
+            http://localhost:3000/items | jq -r '.id')
+          curl -sf http://localhost:3000/items/$ID | jq -e '.name == "Pipeline Test"'
+          curl -sf -X DELETE http://localhost:3000/items/$ID
+          echo "✔ CRUD ok"
+      
+      - if: failure()
+        run: docker compose logs
+
+      - if: always()
+        run: docker compose down -v
+
+  docker-build:
+    needs: integration-tests
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/app:${{ github.sha }}
+
+  deploy:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Deploy de ${{ github.sha }} autorizado!"
+
+
+
+
