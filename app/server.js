@@ -11,7 +11,7 @@ const pool = new Pool({
 app.get("/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ok", db: "connected" });
+    res.json({ status: "error", db: "disconnected" });
   } catch (err) {
     res.status(500).json({ status: "error", db: err.message });
   }
