@@ -7,7 +7,7 @@ app.use(express.json())
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL
 })
-
+//Health check route
 app.get("/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");
