@@ -1,0 +1,23 @@
+name: Pipeline com Testes Reutilizáveis
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - run: cd app && npm ci && npm test
+
+  integration:
+    needs: unit
+    uses: ./.github/workflows/reusable-tests.yml
+    with:
+      api_url: http://localhost:3000
+      wait_timeout: 60

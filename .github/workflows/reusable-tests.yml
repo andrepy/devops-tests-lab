@@ -1,0 +1,41 @@
+name: Reusable Tests
+
+on:
+  workflow_call:
+    inputs:
+      api_url:
+        type: string
+        default: 'http://localhost:3000'
+      wait_timeout:
+        type: number
+        default: 60
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker compose up -d --build
+
+      - name: Aguardar (${{ inputs.wait_timeout }})
+        run: |
+          for i in $(seq 1 $(( ${{ inputs.wait_timeout }} / 2 ))); do
+            curl -sf ${{ inputs.api_url }}/health && exit 0; sleep 2
+          done; exit 1
+
+      - run: curl -sf ${{ inputs.api_url }}/health | jq -e '.status == "ok"'
+
+      - run: docker compose exec -T db pg_isready -U postgres
+
+      - name: CRUD
+        run: |
+          URL=${{ inputs.api_url }}
+          curl -sf $URL/items | jq -e 'type == "array"'
+          ID=$(curl -sf -X POST -H 'Content-Type: application/json' \
+            -d '{"name":"Reusable"}' $URL/items | jq -r '.id')
+          curl -sf -X DELETE $URL/items/$ID
+          echo "✔ Testes ok"
+
+      - if: always()
+        run: docker compose down -v
